@@ -13,3 +13,139 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id           String         @id @default(uuid())
+  name         String         @db.VarChar(50)
+  email        String         @unique @db.VarChar(255)
+  phoneNum     String         @db.VarChar(15)
+  password     String         @db.VarChar(255)
+  about        String?        @db.Text
+  country      String         @default("India") @db.VarChar(100)
+  gender       Gender?
+  otp          String?        @default("")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // Profile picture (one-to-one)
+  profilePic   Files?         @relation("UserProfilePic", fields: [profilePicId], references: [id])
+  profilePicId String?        @unique
+
+  // Messages
+  sentMessages    Message[]   @relation("MessageSender")
+  seenMessages    Message[]   @relation("MessageSeenBy")
+  deletedMessages Message[]   @relation("MessageDeletedBy")
+
+  // Conversations
+  conversations   Conversation[] @relation("ConversationMembers")
+  adminConversations Conversation[] @relation("GroupAdmin")
+
+  // Files
+  createdFiles    Files[]     @relation("FileCreator")
+  accessedFiles   Files[]     @relation("FileAccessors")
+  deletedFiles    Files[]     @relation("FileDeleters")
+
+  // Unreads
+  unreads         Unread[]    @relation("UserUnreads")
+
+  @@index([email])
+  @@index([phoneNum])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String @unique
+  sender         User         @relation("MessageSender", fields: [senderId], references: [id])
+  senderId       String
+  text           String
+  imageurl       String       @default("")
+  reaction       String       @default("")
+  
+  seenBy        User[]        @relation("MessageSeenBy")
+  deletedBy     User[]        @relation("MessageDeletedBy")
+
+  replyTo       Message?      @relation("MessageReplies", fields: [replyToId], references: [id])
+  replyToId     String?
+  replies       Message[]     @relation("MessageReplies")
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([replyToId])
+}
+
+model Conversation {
+  id             String       @id @default(uuid())
+  members        User[]       @relation("ConversationMembers")
+  
+  latestMessage  Message?
+  latestMessageId String?
+  
+  unread         Unread[]     @relation("ConversationUnreads")
+  name           String?
+  isGroup        Boolean      @default(false)
+  
+  groupImage     Files?       @relation("GroupImage", fields: [groupImageId], references: [id])
+  groupImageId   String?      @unique
+  
+  groupAdmin     User?        @relation("GroupAdmin", fields: [groupAdminId], references: [id])
+  groupAdminId   String?
+  
+  about          String       @default("")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([latestMessageId])
+  @@index([groupAdminId])
+}
+
+model Unread {
+  id               String       @id @default(uuid())
+  user             User         @relation("UserUnreads", fields: [userId], references: [id])
+  userId           String
+  conversation     Conversation @relation("ConversationUnreads", fields: [conversationId], references: [id])
+  conversationId   String
+  unseen           Int          @default(0)
+  lastSeenMessageId String?
+
+  @@unique([userId, conversationId])
+}
+
+model Files {
+  id            String       @id @default(uuid())
+  fieldname     String?
+  originalname  String
+  encoding      String?
+  mimetype      String?
+  size          Int?
+  filePath      String       @default("")
+  bucket        String?
+  storageKey    String?
+  isPublic      Boolean      @default(false)
+  isDeleted     Boolean      @default(false)
+  deletedAt     DateTime?
+
+  // Relations
+  createdBy     User         @relation("FileCreator", fields: [createdById], references: [id])
+  createdById   String
+  
+  accessedBy    User[]       @relation("FileAccessors")
+  deletedBy     User[]       @relation("FileDeleters")
+  
+  userProfile   User?        @relation("UserProfilePic")
+  groupProfile  Conversation? @relation("GroupImage")
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([createdById])
+}
+
+enum Gender {
+  male
+  female
+  other
+}
